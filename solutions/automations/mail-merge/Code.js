@@ -2,6 +2,7 @@
 // https://developers.google.com/apps-script/samples/automations/mail-merge
 
 /*
+Original code from Martin Hawksey, Google Inc.
 Copyright 2022 Martin Hawksey
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +17,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Modifications made by David Cavaceci, June 2025.
+// See NOTICE file for description of changes. 
  
 /**
  * @OnlyCurrentDoc
@@ -26,9 +30,12 @@ limitations under the License.
  * recipient addresses and email sent column.
 */
 const RECIPIENT_COL  = "Owner Email";
-const EMAIL_SENT_COL = "Email Sent";
-const LETTER_PRINTED_COL = "Letter Printed";
- 
+const EMAIL_SENT_COL = "Follow-up Email Sent";
+const LETTER_PRINTED_COL = "Follow-up Letter Delivered/Sent";
+const SENDER_EMAIL = "srhamadisonwi@gmail.com";
+const SENDER_NAME = "SRHA Board";
+var DEBUG = 0;
+
 /** 
  * Creates the menu item "Mail Merge" for user to run scripts on drop-down.
  */
@@ -36,9 +43,20 @@ function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Mail Merge')
       .addItem('Send Emails', 'sendEmails')
+      .addItem('Send Test Email', 'sendTestEmail')
       .addToUi();
 }
- 
+
+/**
+ * Sends a test email back to the sender. 
+ * @param {string} subjectLine (optional) for the email draft message
+ * @param {Sheet} sheet to read data from
+*/
+function sendTestEmail() {
+  DEBUG = 1;
+  sendEmails();
+} 
+
 /**
  * Sends emails from sheet data.
  * @param {string} subjectLine (optional) for the email draft message
@@ -65,8 +83,9 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   const dataRange = sheet.getDataRange();
   // Fetches displayed values for each row in the Range HT Andrew Roberts 
   // https://mashe.hawksey.info/2020/04/a-bulk-email-mail-merge-with-gmail-and-google-sheets-solution-evolution-using-v8/#comment-187490
-  // @see https://developers.google.com/apps-script/reference/spreadsheet/range#getdisplayvalues
-  const data = dataRange.getDisplayValues();
+  // @see https://deCreate drafts instead of sendingvelopers.google.com/apps-script/reference/spreadsheet/range#getdisplayvalues
+  var data = dataRange.getDisplayValues();
+
 
   // Assumes row 1 contains our column headings
   const heads = data.shift(); 
@@ -74,6 +93,21 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   // Gets the index of the column named 'Email Status' (Assumes header names are unique)
   // @see http://ramblings.mcpher.com/Home/excelquirks/gooscript/arrayfunctions
   const emailSentColIdx = heads.indexOf(EMAIL_SENT_COL);
+  
+  // Select a single random row if debugging
+  if (DEBUG == 1) {
+    const randomIndex = Math.floor(Math.random() * data.length);
+    const randomRow = data[randomIndex];
+    
+    // Clear the object array
+    data = [];
+    data[0] = randomRow;
+    // Clear email sent column, in case a row was chosen with a sent date populated
+    data[0][emailSentColIdx] = '';
+    // Set recipient email to that of the sender
+    data[0][heads.indexOf(RECIPIENT_COL)] = SENDER_EMAIL;
+  }
+
   
   // Converts 2d array into an object array
   // See https://stackoverflow.com/a/22917499/1027723
@@ -84,7 +118,7 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   const out = [];
 
   // Loops through all the rows of data
-  obj.forEach(function(row, rowIdx){
+  obj.forEach(function(row){
     // Only sends emails if email_sent cell is blank and not hidden by a filter
     // ... and a letter has not been printed for the row
     if (row[RECIPIENT_COL] != '' && row[EMAIL_SENT_COL] == '' && row[LETTER_PRINTED_COL] == ''){
@@ -98,8 +132,8 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
           htmlBody: msgObj.html,
           // bcc: 'a.bcc@email.com',
           // cc: 'a.cc@email.com',
-          // from: 'an.alias@email.com',
-          // name: 'name of the sender',
+          from: SENDER_EMAIL,
+          name: SENDER_NAME,
           // replyTo: 'a.reply@email.com',
           // noReply: true, // if the email should be sent from a generic no-reply email address (not available to gmail.com users)
           attachments: emailTemplate.attachments,
@@ -117,7 +151,9 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   });
   
   // Updates the sheet with new data
-  sheet.getRange(2, emailSentColIdx+1, out.length).setValues(out);
+  if (DEBUG != 1) {
+    sheet.getRange(2, emailSentColIdx+1, out.length).setValues(out);
+  }
   
   /**
    * Get a Gmail draft message by matching the subject line.
