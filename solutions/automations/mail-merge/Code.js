@@ -25,8 +25,9 @@ limitations under the License.
  * Change these to match the column names you are using for email 
  * recipient addresses and email sent column.
 */
-const RECIPIENT_COL  = "Recipient";
+const RECIPIENT_COL  = "Owner Email";
 const EMAIL_SENT_COL = "Email Sent";
+const LETTER_PRINTED_COL = "Letter Printed";
  
 /** 
  * Creates the menu item "Mail Merge" for user to run scripts on drop-down.
@@ -85,14 +86,15 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   // Loops through all the rows of data
   obj.forEach(function(row, rowIdx){
     // Only sends emails if email_sent cell is blank and not hidden by a filter
-    if (row[EMAIL_SENT_COL] == ''){
+    // ... and a letter has not been printed for the row
+    if (row[RECIPIENT_COL] != '' && row[EMAIL_SENT_COL] == '' && row[LETTER_PRINTED_COL] == ''){
       try {
         const msgObj = fillInTemplateFromObject_(emailTemplate.message, row);
 
         // See https://developers.google.com/apps-script/reference/gmail/gmail-app#sendEmail(String,String,String,Object)
         // If you need to send emails with unicode/emoji characters change GmailApp for MailApp
         // Uncomment advanced parameters as needed (see docs for limitations)
-        GmailApp.sendEmail(row[RECIPIENT_COL], msgObj.subject, msgObj.text, {
+        GmailApp.createDraft(row[RECIPIENT_COL], msgObj.subject, msgObj.text, {
           htmlBody: msgObj.html,
           // bcc: 'a.bcc@email.com',
           // cc: 'a.cc@email.com',
