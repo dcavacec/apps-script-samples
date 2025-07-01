@@ -30,10 +30,11 @@ limitations under the License.
  * recipient addresses and email sent column.
 */
 const RECIPIENT_COL  = "Owner Email";
-const EMAIL_SENT_COL = "Follow-up Email Sent";
-const LETTER_PRINTED_COL = "Follow-up Letter Delivered/Sent";
+const EMAIL_SENT_COL = "Follow-up Email Sent";                // non-empty rows will not have an email generated
+const LETTER_PRINTED_COL = "Follow-up Letter Delivered/Sent"; // non-empty rows will not have an email generated
 const SENDER_EMAIL = "srhamadisonwi@gmail.com";
 const SENDER_NAME = "SRHA Board";
+const CURRENT_AMNT_DUE_COL = "Total DUE";                     // Rows with value <= 0 will not have an email generated. 
 var DEBUG = 0;
 
 /** 
@@ -42,27 +43,27 @@ var DEBUG = 0;
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Mail Merge')
-      .addItem('Send Emails', 'sendEmails')
-      .addItem('Send Test Email', 'sendTestEmail')
+      .addItem('Draft Emails', 'draftEmails')
+      .addItem('Draft Test Email', 'draftTestEmail')
       .addToUi();
 }
 
 /**
- * Sends a test email back to the sender. 
+ * Drafts a sample email from a randomly selected row
  * @param {string} subjectLine (optional) for the email draft message
  * @param {Sheet} sheet to read data from
 */
-function sendTestEmail() {
+function draftTestEmail() {
   DEBUG = 1;
-  sendEmails();
+  draftEmails();
 } 
 
 /**
- * Sends emails from sheet data.
+ * Drafts emails from sheet data.
  * @param {string} subjectLine (optional) for the email draft message
  * @param {Sheet} sheet to read data from
-*/
-function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
+*/r
+function draftEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   // option to skip browser prompt if you want to use this code in other projects
   if (!subjectLine){
     subjectLine = Browser.inputBox("Mail Merge", 
@@ -90,9 +91,18 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
   // Assumes row 1 contains our column headings
   const heads = data.shift(); 
   
-  // Gets the index of the column named 'Email Status' (Assumes header names are unique)
+  // Gets the index of the columns
   // @see http://ramblings.mcpher.com/Home/excelquirks/gooscript/arrayfunctions
   const emailSentColIdx = heads.indexOf(EMAIL_SENT_COL);
+
+  function moneyStringToFloat(val) {
+    return parseFloat(val.replace(/[$,]/g, '')); // Remove dollar sign and commas
+  }
+  // Don't include those who have already paid
+  const amtDueColIdx = heads.indexOf(CURRENT_AMNT_DUE_COL);
+  data = data.filter(function(row) {
+    return moneyStringToFloat(row[amtDueColIdx]) > 0;
+  });
   
   // Select a single random row if debugging
   if (DEBUG == 1) {
@@ -105,7 +115,7 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
     // Clear email sent column, in case a row was chosen with a sent date populated
     data[0][emailSentColIdx] = '';
     // Set recipient email to that of the sender
-    data[0][heads.indexOf(RECIPIENT_COL)] = SENDER_EMAIL;
+    data[0][heads.indexOf(RECIPIENT_COL)] = SENDER_EMAIL; // will go back to sender if accidentally sent from drafts folder. 
   }
 
   
@@ -119,8 +129,9 @@ function sendEmails(subjectLine, sheet=SpreadsheetApp.getActiveSheet()) {
 
   // Loops through all the rows of data
   obj.forEach(function(row){
-    // Only sends emails if email_sent cell is blank and not hidden by a filter
+    // Only drafts emails if EMAIL_SENT_COL cell is blank and not hidden by a filter
     // ... and a letter has not been printed for the row
+    // ... and current amount due is > 0
     if (row[RECIPIENT_COL] != '' && row[EMAIL_SENT_COL] == '' && row[LETTER_PRINTED_COL] == ''){
       try {
         const msgObj = fillInTemplateFromObject_(emailTemplate.message, row);
